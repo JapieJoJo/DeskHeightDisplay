@@ -69,7 +69,7 @@ void DisplayDistance( unsigned long ulDistance, bool fOnChangeOnly )
     if( ulDistance > 500 )
       sprintf( szDistance, " --- cm" );
     else
-      sprintf( szDistance, "%3d cm", ulDistance );
+      sprintf( szDistance, "%3lu cm", ulDistance );
     
     DisplayString( szDistance );
     
