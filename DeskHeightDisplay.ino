@@ -1,11 +1,16 @@
 extern void SetupOLED();
 extern void DisplayBlack();
+extern void DisplayClear();
+extern void DisplayDraw();
 extern void DisplayString( const char * const pszString );
 
 
 extern void SetupDistance();
 extern unsigned long GetDistance();
-extern void DisplayDistance( unsigned long lDistance, bool fOnChangeOnly );
+void DisplayDistance( unsigned long ulDistance );
+
+
+extern void ScrollTriangles( int8_t iDirection );
 
 void CycleTime( unsigned long ulStartTime );
 
@@ -21,9 +26,55 @@ void setup()
 
 void loop() 
 {
-  unsigned long ulStartTime = millis();
+  const unsigned long  TOLERANCE      =     0; // [cm]
+  const unsigned long  SCROLLDELAY    =   500; // [ms]
+  const unsigned long  TEXTDELAY      = 10000; // [ms]
 
-  DisplayDistance( GetDistance(), true );
+  static unsigned long lastChange     = millis();
+  static int8_t        iDirection     = 0;
+  static unsigned long ulPrevDistance = 0;
+  static bool          fShowScroll    = false;
+  static bool          fShowText      = true;
+
+  unsigned long        ulStartTime    = millis();
+  unsigned long        ulDistance     = GetDistance();
+
+
+  DisplayClear();
+
+  long lChange = ulPrevDistance - ulDistance;
+
+//Serial.println( lChange );
+ 
+  if( abs(lChange) > TOLERANCE )
+  {
+    fShowScroll = true;
+    fShowText   = true;
+    lastChange  = millis();
+
+    ulPrevDistance = ulDistance;
+  }
+  
+  if( millis() - lastChange > SCROLLDELAY )
+    fShowScroll = false;
+  
+  if( millis() - lastChange > TEXTDELAY )
+    fShowText = false;
+
+  if( lChange > 0 )
+    iDirection = +1;
+  else if( lChange < 0 )
+    iDirection = -1;
+  else if( !fShowScroll )
+    iDirection = 0;
+
+  if( fShowScroll )
+    ScrollTriangles( iDirection );
+
+  if( fShowText )
+    DisplayDistance( ulDistance );
+
+  DisplayDraw();
 
   CycleTime( ulStartTime );
 }
@@ -39,32 +90,10 @@ void CycleTime( unsigned long ulStartTime )
   }
 }
 
-void DisplayDistance( unsigned long ulDistance, bool fOnChangeOnly )
+void DisplayDistance( unsigned long ulDistance )
 {
-  static unsigned long ulPrevDistance = 0;
-  static unsigned long ulLastUpdate   = 0;
-  static bool          fDisplayActive = true;
-
-  unsigned long        ulTolerance    = 0;      // [cm]
-  bool                 fChange;
-  char                 szDistance[32] = "";
-
-  // change larger than tolerance?
-  fChange = abs(ulPrevDistance - ulDistance) > ulTolerance;
-
-  // store previous value
-  ulPrevDistance  = ulDistance;
-  
-  // early exit when we only trigger the display on change - but there is no change
-  // but remain a but longer when we display the last change   
-  if( !(fDisplayActive || fChange || !fOnChangeOnly) )
-   return;   
-
-  unsigned long ulNow = millis();
-  
-  // update the value or dim the screen delayed to protect the OLED display
-  if( fChange )
-  {
+    char szDistance[32] = "";
+    
     // valid measurement range is 500cm
     if( ulDistance > 500 )
       sprintf( szDistance, " --- cm" );
@@ -72,14 +101,4 @@ void DisplayDistance( unsigned long ulDistance, bool fOnChangeOnly )
       sprintf( szDistance, "%3lu cm", ulDistance );
     
     DisplayString( szDistance );
-    
-    ulLastUpdate   = ulNow;
-    fDisplayActive = true;
-  }
-  else if( ulNow - ulLastUpdate > 5000 )
-  {
-    // no change anymore - clear display - prevent burn in
-    fDisplayActive = false;
-    DisplayBlack();
-  }
 }
